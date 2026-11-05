@@ -15,17 +15,32 @@ jobs:
           node-version: 20
 
       - name: Install Cordova
-        run: npm install -g cordova
+        uses: actions/setup-node@v4
+      - run: npm install -g cordova
 
-      - name: Create Cordova project structure
+      - name: Initialize Cordova structure manually
         run: |
-          cordova create . com.diadsoul.solarfox SolarFoxCop
-          rm -rf www/*
+          mkdir -p www
           cp index.html www/index.html
-          cordova platform add android
 
-      - name: Build Debug APK
-        run: cordova build android
+          # Создаем минимальный config.xml для Cordova
+          cat << 'CONFIG' > config.xml
+          <?xml version='1.0' encoding='utf-8'?>
+          <widget id="com.diadsoul.solarfox" version="1.0.0" xmlns="http://www.w3.org/ns/widgets">
+              <name>SolarFoxCop</name>
+              <description>Audio Tag Editor</description>
+              <author email="dev@solarfox" href="">SolarFox Team</author>
+              <content src="index.html" />
+              <allow-intent href="http://*/*" />
+              <allow-intent href="https://*/*" />
+              <platform name="android" />
+          </widget>
+          CONFIG
+
+      - name: Add Android platform and build
+        run: |
+          cordova platform add android
+          cordova build android
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
