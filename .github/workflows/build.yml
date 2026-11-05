@@ -15,15 +15,13 @@ jobs:
           node-version: 20
 
       - name: Install Cordova
-        uses: actions/setup-node@v4
-      - run: npm install -g cordova
+        run: npm install -g cordova
 
-      - name: Initialize Cordova structure manually
+      - name: Initialize and build
         run: |
           mkdir -p www
           cp index.html www/index.html
 
-          # Создаем минимальный config.xml для Cordova
           cat << 'CONFIG' > config.xml
           <?xml version='1.0' encoding='utf-8'?>
           <widget id="com.diadsoul.solarfox" version="1.0.0" xmlns="http://www.w3.org/ns/widgets">
@@ -37,9 +35,9 @@ jobs:
           </widget>
           CONFIG
 
-      - name: Add Android platform and build
-        run: |
           cordova platform add android
+          cordova plugin add cordova-plugin-file
+          cordova plugin add cordova-plugin-android-permissions
           cordova build android
 
       - name: Upload APK artifact

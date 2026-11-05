@@ -54,7 +54,7 @@
     <input type="text" id="artistInput" placeholder="Имя артиста">
   </div>
 
-  <button id="saveBtn" class="save-btn" disabled>💾 Сохранить в память телефона</button>
+  <button id="saveBtn" class="save-btn" disabled>💾 Сохранить копию в память</button>
   <div id="statusText" class="status"></div>
 </div>
 
@@ -69,6 +69,16 @@
   const coverPreview = document.getElementById('coverPreview');
   const saveBtn = document.getElementById('saveBtn');
   const statusText = document.getElementById('statusText');
+
+  // Запрос разрешений при старте приложения
+  document.addEventListener('deviceready', () => {
+    const permissions = cordova.plugins.permissions;
+    permissions.requestPermission(
+      permissions.WRITE_EXTERNAL_STORAGE,
+      () => console.log("Права получены"),
+      () => console.log("Права отклонены")
+    );
+  }, false);
 
   audioInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
@@ -86,7 +96,7 @@
       artistInput.value = "Неизвестный исполнитель";
     }
     saveBtn.disabled = false;
-    statusText.textContent = "Файл загружен, отредактируйте данные";
+    statusText.textContent = "Файл загружен";
   });
 
   coverInput.addEventListener('change', (e) => {
@@ -95,7 +105,7 @@
     coverPreview.src = URL.createObjectURL(file);
   });
 
-  saveBtn.addEventListener('click', async () => {
+  saveBtn.addEventListener('click', () => {
     if (!currentFile) return;
 
     const artist = artistInput.value.trim() || "Artist";
@@ -104,44 +114,35 @@
 
     statusText.textContent = "Сохранение...";
 
-    try {
-      // Пробуем вызвать диалог сохранения файла на телефоне (если поддерживается)
-      if ('showSaveFilePicker' in window) {
-        const handle = await window.showSaveFilePicker({
-          suggestedName: cleanFileName,
-          types: [{
-            description: 'Audio File',
-            accept: { 'audio/mp3': ['.mp3'] },
-          }],
+    // Если приложение работает в среде Cordova на Android
+    if (window.resolveLocalFileSystemURL) {
+      window.resolveLocalFileSystemURL(cordova.file.externalDataDirectory || cordova.file.dataDirectory, (dir) => {
+        dir.getFile(cleanFileName, { create: true, exclusive: false }, (fileEntry) => {
+          fileEntry.createWriter((fileWriter) => {
+            fileWriter.onwriteend = () => {
+              statusText.textContent = "✅ Сохранено в папку приложения!";
+              alert("Файл успешно сохранен: " + cleanFileName);
+            };
+            fileWriter.onerror = (e) => {
+              statusText.textContent = "Ошибка записи: " + e.toString();
+            };
+            fileWriter.write(currentFile);
+          });
+        }, (err) => {
+          statusText.textContent = "Ошибка создания файла";
         });
-        const writable = await handle.createWritable();
-        await writable.write(currentFile);
-        await writable.close();
-        statusText.textContent = "✅ Успешно сохранено!";
-        return;
-      }
-    } catch (err) {
-      if (err.name !== 'AbortError') {
-        console.log("Picker fallback", err);
-      } else {
-        statusText.textContent = "Отменено пользователем";
-        return;
-      }
+      });
+    } else {
+      // Запасной вариант для браузера
+      const url = URL.createObjectURL(currentFile);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = cleanFileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      statusText.textContent = "✅ Скачано в Загрузки!";
     }
-
-    // Стандартный фоллбек через Blob-ссылку
-    const blob = new Blob([currentFile], { type: 'audio/mp3' });
-    const url = URL.createObjectURL(blob);
-
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = cleanFileName;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-
-    statusText.textContent = "✅ Файл отправлен в системные Загрузки!";
   });
 </script>
 
