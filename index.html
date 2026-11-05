@@ -20,6 +20,7 @@
     input[type="text"] { width: 100%; padding: 10px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; color: #fff; outline: none; }
     .save-btn { width: 100%; padding: 14px; background: #10b981; color: #fff; font-weight: bold; border: none; border-radius: 10px; font-size: 1rem; cursor: pointer; margin-top: 10px; }
     .save-btn:disabled { background: #334155; cursor: not-allowed; }
+    .status { margin-top: 10px; text-align: center; font-size: 0.85rem; color: #38bdf8; }
   </style>
 </head>
 <body>
@@ -53,7 +54,8 @@
     <input type="text" id="artistInput" placeholder="Имя артиста">
   </div>
 
-  <button id="saveBtn" class="save-btn" disabled>💾 Сохранить и скачать MP3</button>
+  <button id="saveBtn" class="save-btn" disabled>💾 Сохранить в память телефона</button>
+  <div id="statusText" class="status"></div>
 </div>
 
 <script>
@@ -66,6 +68,7 @@
   const artistInput = document.getElementById('artistInput');
   const coverPreview = document.getElementById('coverPreview');
   const saveBtn = document.getElementById('saveBtn');
+  const statusText = document.getElementById('statusText');
 
   audioInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
@@ -83,6 +86,7 @@
       artistInput.value = "Неизвестный исполнитель";
     }
     saveBtn.disabled = false;
+    statusText.textContent = "Файл загружен, отредактируйте данные";
   });
 
   coverInput.addEventListener('change', (e) => {
@@ -91,13 +95,41 @@
     coverPreview.src = URL.createObjectURL(file);
   });
 
-  saveBtn.addEventListener('click', () => {
+  saveBtn.addEventListener('click', async () => {
     if (!currentFile) return;
 
     const artist = artistInput.value.trim() || "Artist";
     const title = titleInput.value.trim() || "Track";
     const cleanFileName = `${artist} - ${title}.mp3`;
 
+    statusText.textContent = "Сохранение...";
+
+    try {
+      // Пробуем вызвать диалог сохранения файла на телефоне (если поддерживается)
+      if ('showSaveFilePicker' in window) {
+        const handle = await window.showSaveFilePicker({
+          suggestedName: cleanFileName,
+          types: [{
+            description: 'Audio File',
+            accept: { 'audio/mp3': ['.mp3'] },
+          }],
+        });
+        const writable = await handle.createWritable();
+        await writable.write(currentFile);
+        await writable.close();
+        statusText.textContent = "✅ Успешно сохранено!";
+        return;
+      }
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        console.log("Picker fallback", err);
+      } else {
+        statusText.textContent = "Отменено пользователем";
+        return;
+      }
+    }
+
+    // Стандартный фоллбек через Blob-ссылку
     const blob = new Blob([currentFile], { type: 'audio/mp3' });
     const url = URL.createObjectURL(blob);
 
@@ -109,7 +141,7 @@
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
 
-    alert("Готово! Файл отправлен на скачивание.");
+    statusText.textContent = "✅ Файл отправлен в системные Загрузки!";
   });
 </script>
 
